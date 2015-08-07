@@ -70,9 +70,28 @@ float perlin(vec3 pos, float scale, float prod, float turb, int levels) {
   return sum;
 }
 
+/*
+float DE(vec3 v){//this is our old friend menger
+  float x = v.x;
+  float y = v.y;
+  float z = v.z;
+  int n,iters=5;float t;
+  for(n=0;n<iters;n++){
+    x=abs(x);y=abs(y);z=abs(z);//fabs is just abs for floats
+    if(x<y){t=x;x=y;y=t;}
+    if(y<z){t=y;y=z;z=t;}
+    if(x<y){t=x;x=y;y=t;}
+    x=x*3.0-2.0;y=y*3.0-2.0;z=z*3.0-2.0;
+    if(z<-1.0)z+=2.0;
+  }
+  return (sqrt(x*x+y*y+z*z)-1.5)*pow(3.0,-float(iters));
+} */
+
 float minDist(vec3 pos) {
-  return perlin(pos, .4, .7, 2, 6) - 1;
-  /*
+  //return DE(pos);
+  
+  return perlin(pos, .4, .7, 2, 4) - 1;
+
     float s = 3;
     float r = 10;
     vec3 q = mod(pos,vec3(r,r,r))-0.5*vec3(r,r,r);
@@ -80,20 +99,42 @@ float minDist(vec3 pos) {
     vec3 t = vec3(1,1,1);
     vec2 v = vec2(length(q.xz)-t.x,q.y);
     return length(v)-t.y;
-  */
+
+}
+
+vec3 normAt(vec3 pos) {
+  float d = .1;
+  float x0 = minDist(pos - vec3(.1,0,0));
+  float x1 = minDist(pos + vec3(.1,0,0));
+  float y0 = minDist(pos - vec3(0,.1,0));
+  float y1 = minDist(pos + vec3(0,.1,0));
+  float z0 = minDist(pos - vec3(0,0,.1));
+  float z1 = minDist(pos + vec3(0,0,.1));
+  return normalize(vec3(x1-x0,y1-y0,z1-z0));
 }
 
 vec3 projectRay(vec3 pos, vec3 dir, int maxDist) {
   int nsteps = 0;
+  int maxsteps = 20;
   float raylen = 0;
   float dist = minDist(pos);
-  while (raylen < maxDist && dist > .01 && nsteps < 10) {
+  while (raylen < maxDist && dist > .01 && nsteps < maxsteps) {
     raylen += dist;
     dist = minDist(pos + dir * raylen);
     nsteps++;
   }
   float v = 1 - raylen / maxDist;
-  return vec3(v,v,v);
+
+  vec3 norm = normAt(pos + dir * raylen);
+  float rshade = .9 * max(dot(norm,vec3(1,0,0)),0) + .1;
+  float bshade = .8 * max(dot(norm,vec3(-1,0,0)),0) + .2;
+
+  vec3 color = vec3(rshade * v, v, bshade * v);
+  color *= 1 - float(nsteps) / maxsteps;
+
+  //color = vec3(0,0,1) * rshade + color * (1 - rshade);
+
+  return color;
 }
 
 void main() {
@@ -103,6 +144,6 @@ void main() {
   dir += screenp.y * camup;
   dir = normalize(dir);
   //vec3 dir = normalize(vec3(screenp.x * whratio, screenp.y, 1));
-  pos = pos + dir;
+  pos = pos + dir * .2;
   color = projectRay(pos, dir, 20);
 }
