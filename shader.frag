@@ -29,6 +29,18 @@ float rand(vec3 co) {
   return fract(sin(dot(vec2(co.z, v1) ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
+vec4 interpolate4(vec4 v1, vec4 v2, float d) {
+  float ft = d * 3.141592;
+  float f = (1.0 - cos(ft)) * .5;
+  return v1 * (1.0-f) + v2 * f;
+}
+
+vec2 interpolate2(vec2 v1, vec2 v2, float d) {
+  float ft = d * 3.141592;
+  float f = (1.0 - cos(ft)) * .5;
+  return v1 * (1.0-f) + v2 * f;
+}
+
 float interpolate(float v1, float v2, float d) {
   float ft = d * 3.141592;
   float f = (1.0 - cos(ft)) * .5;
@@ -47,27 +59,26 @@ float randAt(vec3 pos) {
   float rrl = rand(posSq + vec3(1,1,0));
   float rrr = rand(posSq + vec3(1,1,1));
 
-  float ll = interpolate(lll, llr, disp.z);
-  float lr = interpolate(lrl, lrr, disp.z);
-  float rl = interpolate(rll, rlr, disp.z);
-  float rr = interpolate(rrl, rrr, disp.z);
-	
-  float l = interpolate(ll, lr, disp.y);
-  float r = interpolate(rl, rr, disp.y);
+  vec4 i1 = interpolate4(vec4(lll, lrl, rll, rrl),
+			 vec4(llr, lrr, rlr, rrr), disp.z);
 
-  return interpolate(l, r, disp.x);
+  vec2 i2 = interpolate2(vec2(i1.x, i1.z), vec2(i1.y, i1.w), disp.y);
+
+  return interpolate(i2.x, i2.y, disp.x);
 }
 
 float perlin(vec3 pos, float scale, float prod, float turb, int levels) {
   float sum = 0.0;
   float product = 1.0;
   float sampleSize = scale;
+  float maxampl = 0;
   for (int lvl = 0; lvl < levels; lvl++) {
     sum += randAt(pos * sampleSize) * product;
+    maxampl += product;
     product *= prod;
     sampleSize *= turb;
   }
-  return sum;
+  return sum / maxampl;
 }
 
 /*
@@ -90,7 +101,12 @@ float DE(vec3 v){//this is our old friend menger
 float minDist(vec3 pos) {
   //return DE(pos);
   
-  return perlin(pos, .4, .7, 2, 4) - 1;
+  //return perlin(pos, .4, .7, 2 + cos(float(t) / 100.0), 4) - sin(float(t) / 300.0);
+  pos = pos + vec3(5,5,5);
+  vec3 posmod = 10 * (pos / 10 - ivec3(pos / 10)) - vec3(5,5,5);
+  //return perlin(pos, .4, .7, 2, 4) - length(posmod) / 10;// - sin(float(t) / 300.0);
+  return perlin(pos, .4, .4 + .3 * cos(float(t) / 20), 3, 4) - length(posmod) / 10;// - sin(float(t) / 300.0);
+  //return perlin(pos, .4, .7, 1.5, 4) - 1.3;
 
     float s = 3;
     float r = 10;
@@ -119,18 +135,26 @@ vec3 projectRay(vec3 pos, vec3 dir, int maxDist) {
   float raylen = 0;
   float dist = minDist(pos);
   while (raylen < maxDist && dist > .01 && nsteps < maxsteps) {
-    raylen += dist;
+    raylen += dist * 2;
     dist = minDist(pos + dir * raylen);
     nsteps++;
   }
   float v = 1 - raylen / maxDist;
+  
+  if (raylen >= maxDist || nsteps == maxsteps) {
+    return vec3(1 - v,1 - v,1 - v);
+  }
 
-  vec3 norm = normAt(pos + dir * raylen);
-  float rshade = .9 * max(dot(norm,vec3(1,0,0)),0) + .1;
-  float bshade = .8 * max(dot(norm,vec3(-1,0,0)),0) + .2;
+  //vec3 norm = normAt(pos + dir * raylen);
+  //float rshade = .9 * max(dot(norm,vec3(1,0,0)),0) + .1;
+  //float bshade = .8 * max(dot(norm,vec3(-1,0,0)),0) + .2;
 
-  vec3 color = vec3(rshade * v, v, bshade * v);
+  //vec3 color = vec3(rshade, 1, bshade) * v;
+  //vec3 color = vec3(.4, .2, .2) * rshade + vec3(.2,.2,.2) * bshade;
+  vec3 color = vec3(0,0,0);
   color *= 1 - float(nsteps) / maxsteps;
+
+  color = color * v + vec3(1,1,1) * (1-v);
 
   //color = vec3(0,0,1) * rshade + color * (1 - rshade);
 
